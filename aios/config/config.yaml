@@ -1,0 +1,19 @@
+system:
+  name: "OS1"
+  version: "1.0.0"
+
+hardware:
+  gpu_layers: 35 # Optimized for RTX 3050 8GB
+  ctx_size: 4096
+
+models:
+  llm_path: "models/llm/Meta-Llama-3.1-8B-Instruct-v0.1.Q4_K_M.gguf"
+  stt_model: "small"
+  tts_voice: "en_US-lessac-medium"
+
+memory:
+  neo4j_uri: "bolt://localhost:7687"
+  neo4j_user: "neo4j"
+  neo4j_pass: "password"
+  redis_host: "localhost"
+  redis_port: 6379

@@ -1,0 +1,18 @@
+{
+  "name": "OS1 Dev Environment",
+  "image": "mcr.microsoft.com/devcontainers/python:3.10-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "moby": true
+    }
+  },
+  "postCreateCommand": "pip install --upgrade pip && sudo apt-get update && sudo apt-get install -y swi-prolog ffmpeg portaudio19-dev libsndfile1 libgl1-mesa-glx",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  }
+}

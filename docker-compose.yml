@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  os1_kernel:
+    build: .
+    container_name: os1_core
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - ./models:/app/models
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - NEO4J_URI=bolt://neo4j:7687
+      - REDIS_HOST=redis
+    depends_on:
+      - neo4j
+      - redis
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  neo4j:
+    image: neo4j:5.16.0
+    container_name: os1_memory_graph
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/password
+    volumes:
+      - ./root/db/neo4j:/data
+
+  redis:
+    image: redis:7.2
+    container_name: os1_memory_cache
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./root/db/redis:/data
