@@ -1,2 +1,16 @@
 *.gguf
 models/llm/
+# Database files
+root/db/
+*.db
+*.db.*
+
+# LLM Models
+models/llm/*.gguf
+*.gguf
+
+# Neo4j
+**/neo4j/data/
+**/neo4j/logs/
+**/neo4j/transactions/
+**/neo4j/databases/
