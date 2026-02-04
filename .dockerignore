@@ -1,0 +1,6 @@
+models/
+root/db/
+.git/
+__pycache__/
+venv/
+.env
