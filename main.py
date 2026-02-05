@@ -13,6 +13,7 @@ from aios.perception.senses import Senses
 from aios.perception.voice import VoiceEngine
 from aios.memory.manager import MemoryManager
 from aios.tools.toolbox import Toolbox
+from aios.safety.firewall import CognitiveFirewall  # NEW
 
 # Setup Logging
 logging.basicConfig(level=logging.INFO)
@@ -28,6 +29,7 @@ voice = VoiceEngine()
 rl_agent = RLAgent()
 bayes = BayesianDecision()
 tools = Toolbox()
+firewall = CognitiveFirewall() # NEW
 
 class InteractionRequest(BaseModel):
     text: str
@@ -41,28 +43,48 @@ def health_check():
 async def text_interaction(req: InteractionRequest, background_tasks: BackgroundTasks):
     logger.info(f"Processing text from {req.user_id}")
 
-    # 1. Memory Retrieval
-    context = memory.retrieve_context(req.text)
+    # 0. SAFETY CHECK (Firewall)
+    if firewall.check_adversarial(req.text):
+        return {"response": "I cannot comply with that request due to safety protocols.", "status": "blocked"}
     
-    # 2. Tool Check
+    clean_text = firewall.sanitize_input(req.text)
+
+    # 1. MODE SWITCHING (Simple Intent Detection)
+    if "medical" in clean_text.lower() or "doctor" in clean_text.lower():
+        brain.switch_mode("medicine")
+    elif "legal" in clean_text.lower() or "lawyer" in clean_text.lower():
+        brain.switch_mode("law")
+    elif "hack" in clean_text.lower() or "cyber" in clean_text.lower():
+        brain.switch_mode("cybersecurity")
+    else:
+        brain.switch_mode("general")
+
+    # 2. Memory Retrieval
+    context = memory.retrieve_context(clean_text)
+    
+    # 3. Tool Check
     tool_result = ""
-    if "time" in req.text.lower():
+    if "time" in clean_text.lower():
         tool_result = tools.execute("get_time", None)
         context += f"\n[System Info: Current Time is {tool_result}]"
 
-    # 3. Bayesian Confidence Check
-    confidence = bayes.assess_confidence(len(req.text), 0.3)
+    # 4. Bayesian Confidence Check
+    confidence = bayes.assess_confidence(len(clean_text), 0.3)
     
-    # 4. Generate Response
-    response_text = brain.generate_response(req.text, context, "Neutral")
+    # 5. Generate Response
+    response_text = brain.generate_response(clean_text, context, "Neutral")
 
-    # 5. GENERATE AUDIO FOR TEXT INPUT (Corrected Access)
+    # 6. Audit Fairness (Post-Gen Safety)
+    if not firewall.audit_fairness(response_text, "general_public"):
+        response_text += "\n[Audit Note: This response has been flagged for potential bias review.]"
+
+    # 7. Generate Audio
     output_audio = "response_text.wav"
     voice.speak(response_text, output_audio)
 
-    # 6. Background Learning & Memory
+    # 8. Background Learning & Memory
     background_tasks.add_task(rl_agent.update_policy, 0.5)
-    background_tasks.add_task(memory.add_episodic_memory, req.text, response_text, "Neutral")
+    background_tasks.add_task(memory.add_episodic_memory, clean_text, response_text, "Neutral")
 
     next_opt = rl_agent.get_optimization_action()
 
@@ -87,20 +109,25 @@ async def audio_interaction(background_tasks: BackgroundTasks, file: UploadFile 
     user_text = senses.listen_to_audio_file(temp_filename)
     logger.info(f"Heard: {user_text}")
     
-    # 3. Cognitive Pipeline (Reuse logic)
-    context = memory.retrieve_context(user_text)
-    response_text = brain.generate_response(user_text, context, "Audio_Input")
+    # 3. Safety Check on Transcription
+    if firewall.check_adversarial(user_text):
+        return {"response": "Safety protocol engaged."}
+    clean_text = firewall.sanitize_input(user_text)
+
+    # 4. Cognitive Pipeline
+    context = memory.retrieve_context(clean_text)
+    response_text = brain.generate_response(clean_text, context, "Audio_Input")
     
-    # 4. Voice Generation (TTS)
+    # 5. Voice Generation (TTS)
     output_audio_path = f"response_{file.filename}.wav"
     voice.speak(response_text, output_audio_path)
     
-    # 5. Cleanup & Memory
+    # 6. Cleanup & Memory
     background_tasks.add_task(os.remove, temp_filename)
-    background_tasks.add_task(memory.add_episodic_memory, user_text, response_text, "Audio")
+    background_tasks.add_task(memory.add_episodic_memory, clean_text, response_text, "Audio")
 
     return {
-        "transcription": user_text,
+        "transcription": clean_text,
         "response_text": response_text,
         "audio_path": output_audio_path
     }

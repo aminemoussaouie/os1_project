@@ -19,19 +19,34 @@ spec:
         - containerPort: 8000
         resources:
           limits:
-            nvidia.com/gpu: 1 # Request the RTX 3050
+            nvidia.com/gpu: 1 # Request the RTX 3050 GPU
           requests:
             memory: "4Gi"
             cpu: "2"
         env:
+        # Connection strings for services (assumed running in K8s too)
         - name: NEO4J_URI
           value: "bolt://neo4j-service:7687"
         - name: REDIS_HOST
           value: "redis-service"
+        # Mount volume for heavy models to avoid re-downloading
         volumeMounts:
         - name: model-cache
           mountPath: /app/models
       volumes:
       - name: model-cache
         hostPath:
-          path: /home/user/os1_models
+          path: /mnt/wsl/PHYSICALDRIVE0/os1_models # Adjust to your storage path
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: os1-service
+spec:
+  selector:
+    app: os1
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: LoadBalancer
