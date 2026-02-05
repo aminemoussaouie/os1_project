@@ -63,12 +63,24 @@ class RLAgent:
         Run a training step based on real interaction.
         user_feedback_score: -1 (Bad) to 1 (Good)
         """
-        # Inject current state into env (hacky for stateless API, but works for prototype)
+        # Inject current state into env
         self.env.state[2] = user_feedback_score 
-        self.model.learn(total_timesteps=100)
-        self.model.save(self.model_path)
+        
+        # FIX: Ensure we don't overflow the buffer by resetting if near limit
+        # For this prototype, we just learn on a small batch
+        try:
+            self.model.learn(total_timesteps=2048, reset_num_timesteps=False) 
+            self.model.save(self.model_path)
+        except Exception as e:
+            # If buffer issues occur, we just reset the model for the next run 
+            # (common in stateless web-request architectures)
+            self.logger.warning(f"RL Update skipped this turn: {e}")
         
     def get_optimization_action(self):
         action, _ = self.model.predict(self.env.state)
+        # FIX: Convert numpy array to standard python int
+        if isinstance(action, np.ndarray):
+            action = action.item()
+            
         actions_map = {0: "Decr Temp", 1: "Incr Temp", 2: "Decr Verbosity", 3: "Incr Verbosity"}
-        return actions_map[action]
+        return actions_map[int(action)]

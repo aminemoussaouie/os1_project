@@ -1,56 +1,57 @@
 import os
 import subprocess
 import logging
-import wave
-import soundfile as sf
 
 class VoiceEngine:
     def __init__(self):
         self.logger = logging.getLogger("OS1.Voice")
-        self.model_path = "models/tts/en_US-lessac-medium.onnx"
-        self.binary_path = "./piper/piper" # Assumes piper binary is installed or available
         
-        # Check if model exists, if not, we rely on the setup script or manual download
-        # For Codespaces/Linux, we usually run piper via CLI for performance
+        self.base_dir = os.getcwd()
+        self.piper_dir = os.path.join(self.base_dir, "piper")
+        self.binary_path = os.path.join(self.piper_dir, "piper")
+        self.model_path = os.path.join(self.base_dir, "models", "tts", "en_US-lessac-medium.onnx")
         
+        # Verify files
+        if not os.path.exists(self.binary_path):
+            self.logger.error(f"Piper binary missing at: {self.binary_path}")
+
     def speak(self, text, output_file="output.wav"):
-        """
-        Generates audio from text using Piper TTS.
-        """
-        self.logger.info(f"Synthesizing: {text[:30]}...")
+        self.logger.info(f"Synthesizing voice...")
         
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        if not os.path.isabs(output_file):
+            output_file = os.path.join(self.base_dir, output_file)
+
+        clean_text = text.replace('"', '').replace("'", "").replace("\n", " ")
         
-        # Sanitize text
-        clean_text = text.replace('"', '').replace("'", "")
-        
-        # Execute Piper command (Fast CPU generation)
-        # Note: In a real env, ensure 'piper' is in PATH or download the binary
-        # For this blueprint, we assume standard command line usage.
-        # If running in python-only without binary, we'd use onnxruntime, 
-        # but CLI is more robust for system integration.
-        
+        # KEY FIX: Add the piper directory to LD_LIBRARY_PATH for this specific command
+        # This tells Linux: "Look for .so files in the piper folder"
+        env = os.environ.copy()
+        env["LD_LIBRARY_PATH"] = f"{self.piper_dir}:{env.get('LD_LIBRARY_PATH', '')}"
+
         try:
-            # Fallback to espeak if piper isn't set up, just to ensure code runs in dev container
-            # Real OS1 would use Piper.
-            cmd = f'echo "{clean_text}" | piper --model {self.model_path} --output_file {output_file}'
+            command = [
+                self.binary_path,
+                "--model", self.model_path,
+                "--output_file", output_file
+            ]
             
-            # Since we didn't download the piper binary in Phase 1, let's implement 
-            # a mock/fallback or assume the user follows the piper install instructions.
-            # To make this code run immediately in Codespaces without binary management:
-            # We will use a placeholder print or a basic system call.
+            process = subprocess.Popen(
+                command, 
+                stdin=subprocess.PIPE, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE,
+                cwd=self.piper_dir, # Run inside piper dir
+                env=env             # Pass the fixed environment variables
+            )
             
-            # ACTION: Using a python-native fallback for immediate testing
-            # Real implementation would call the piper binary.
-            print(f"[OS1 Voice Internal] generating audio for: {text}")
+            stdout, stderr = process.communicate(input=clean_text.encode('utf-8'))
             
-            # Mocking audio file creation for API consistency
-            samplerate = 44100
-            data = [0.0] * samplerate # 1 sec of silence
-            sf.write(output_file, data, samplerate)
-            
+            if process.returncode == 0:
+                self.logger.info(f"Audio generated: {output_file}")
+            else:
+                self.logger.error(f"Piper failed: {stderr.decode()}")
+                
         except Exception as e:
-            self.logger.error(f"TTS Error: {e}")
+            self.logger.error(f"TTS Execution Error: {e}")
             
         return output_file

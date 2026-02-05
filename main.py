@@ -44,7 +44,7 @@ async def text_interaction(req: InteractionRequest, background_tasks: Background
     # 1. Memory Retrieval
     context = memory.retrieve_context(req.text)
     
-    # 2. Tool Check (Simple heuristic)
+    # 2. Tool Check
     tool_result = ""
     if "time" in req.text.lower():
         tool_result = tools.execute("get_time", None)
@@ -52,26 +52,23 @@ async def text_interaction(req: InteractionRequest, background_tasks: Background
 
     # 3. Bayesian Confidence Check
     confidence = bayes.assess_confidence(len(req.text), 0.3)
-    if confidence < 0.4:
-        context += "\n[Internal Note: High uncertainty. Be cautious and ask clarifying questions.]"
-
-    # 4. Generate Response (LLM)
-    # We pass 'Neutral' emotion for text-only, or could analyze text sentiment
+    
+    # 4. Generate Response
     response_text = brain.generate_response(req.text, context, "Neutral")
 
-    # 5. Background Learning
-    # We assume a neutral reward (0.5) for now, client would send real feedback later
+    # 5. GENERATE AUDIO FOR TEXT INPUT (Corrected Access)
+    output_audio = "response_text.wav"
+    voice.speak(response_text, output_audio)
+
+    # 6. Background Learning & Memory
     background_tasks.add_task(rl_agent.update_policy, 0.5)
-    
-    # 6. Memory Storage
     background_tasks.add_task(memory.add_episodic_memory, req.text, response_text, "Neutral")
 
-    # 7. RL Optimization Suggestion
     next_opt = rl_agent.get_optimization_action()
-    logger.info(f"RL Suggestion for next turn: {next_opt}")
 
     return {
         "response": response_text,
+        "audio_path": output_audio,
         "meta": {
             "confidence": confidence,
             "tool_output": tool_result,
